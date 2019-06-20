@@ -8,17 +8,20 @@ import (
 	"strconv"
 )
 
+//Location ...
 type Location struct {
 	Lat float64 `json:"lat"`
 	Lon float64 `json:"lon"`
 }
 
+//Post ...
 type Post struct {
 	User     string   `json:"user"`
 	Message  string   `json:"message"`
 	Location Location `json:"location"`
 }
 
+// distance
 const (
 	DISTANCE = "200km"
 )
@@ -27,7 +30,7 @@ func main() {
 	fmt.Println("started-service")
 	http.HandleFunc("/post", handlerPost)
 	http.HandleFunc("/search", handlerSearch)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8088", nil))
 }
 
 func handlerPost(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +51,6 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 	lat, _ := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
 	lon, _ := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
 
-	// range is optional
 	ran := DISTANCE
 	if val := r.URL.Query().Get("range"); val != "" {
 		ran = val + "km"
@@ -56,7 +58,6 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("range is", ran)
 
-	// return a fake post
 	p := &Post{
 		User:    "1111",
 		Message: "adfadf",
