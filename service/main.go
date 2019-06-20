@@ -27,14 +27,14 @@ type Post struct {
 
 // distance
 const (
-	INDEX    = "Wander"
+	INDEX    = "wander"
 	TYPE     = "post"
 	DISTANCE = "200km"
 	// Needs to update
 	//PROJECT_ID = "around-xxx"
 	//BT_INSTANCE = "around-post"
 	// Needs to update this URL if you deploy it to cloud.
-	ES_URL = "http://http://34.67.110.190:9200"
+	ES_URL = "http://34.67.110.190:9200"
 )
 
 func main() {
@@ -86,7 +86,7 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	}
 	id := uuid.New()
 	// Save to ES.
-	saveToES(&p, id)
+	saveToES(&p, id.String())
 }
 
 // Save a post to ElasticSearch
