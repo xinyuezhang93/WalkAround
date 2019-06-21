@@ -94,7 +94,6 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Received one post request %s\n", r.FormValue("message"))
 	lat, _ := strconv.ParseFloat(r.FormValue("lat"), 64)
 	lon, _ := strconv.ParseFloat(r.FormValue("lon"), 64)
-
 	p := &Post{
 		User:    "1111",
 		Message: r.FormValue("message"),
@@ -105,27 +104,58 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := uuid.New()
-	// read image file
+
 	file, _, err := r.FormFile("image")
 	if err != nil {
 		http.Error(w, "Image is not available", http.StatusInternalServerError)
 		fmt.Printf("Image is not available %v.\n", err)
-		panic(err)
+		return
 	}
 	defer file.Close()
 
 	ctx := context.Background()
 
-	// save to GCS
+	// replace it with your real bucket name.
 	_, attrs, err := saveToGCS(ctx, file, BUCKET_NAME, id.String())
 	if err != nil {
 		http.Error(w, "GCS is not setup", http.StatusInternalServerError)
 		fmt.Printf("GCS is not setup %v\n", err)
-		panic(err)
+		return
 	}
 
 	// Update the media link after saving to GCS.
 	p.Url = attrs.MediaLink
+
+	// Save to ES.
+	saveToES(p, id.String())
+
+	// Save to BigTable.
+	//saveToBigTable(p, id)
+}
+
+// Save a post to ElasticSearch
+func saveToES(p *Post, id string) {
+	// Create a client
+	es_client, err := elastic.NewClient(elastic.SetURL(ES_URL), elastic.SetSniff(false))
+	if err != nil {
+		panic(err)
+		return
+	}
+
+	// Save it to index
+	_, err = es_client.Index().
+		Index(INDEX).
+		Type(TYPE).
+		Id(id).
+		BodyJson(p).
+		Refresh(true).
+		Do()
+	if err != nil {
+		panic(err)
+		return
+	}
+
+	fmt.Printf("Post is saved to Index: %s\n", p.Message)
 }
 
 // Save to GCS -- func
@@ -174,11 +204,11 @@ func containsFilteredWords(s *string) bool {
 }
 
 func handlerSearch(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Receiced one request for search")
-
+	fmt.Println("Received one request for search")
 	lat, _ := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
 	lon, _ := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
 
+	// range is optional
 	ran := DISTANCE
 	if val := r.URL.Query().Get("range"); val != "" {
 		ran = val + "km"
@@ -190,6 +220,7 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 	client, err := elastic.NewClient(elastic.SetURL(ES_URL), elastic.SetSniff(false))
 	if err != nil {
 		panic(err)
+		return
 	}
 
 	// Define geo distance query as specified in
@@ -222,15 +253,13 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 	for _, item := range searchResult.Each(reflect.TypeOf(typ)) { // instance of
 		p := item.(Post) // p = (Post) item
 		fmt.Printf("Post by %s: %s at lat %v and lon %v\n", p.User, p.Message, p.Location.Lat, p.Location.Lon)
-		//Perform filtering based on keywords such as web spam etc.
-		if !containsFilteredWords(&p.Message) {
-			ps = append(ps, p)
-		}
+		ps = append(ps, p)
 
 	}
 	js, err := json.Marshal(ps)
 	if err != nil {
 		panic(err)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
